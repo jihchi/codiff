@@ -34,6 +34,7 @@
     --sidebar-text: rgb(17 17 17 / 0.76);
     --text: #111111;
     --viewed: rgb(31 122 68);
+    color-scheme: light;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -48,6 +49,7 @@
       --sidebar-text: rgb(230 230 230 / 0.78);
       --text: rgb(230 230 230);
       --viewed: rgb(111 208 148);
+      color-scheme: dark;
     }
   }
 
