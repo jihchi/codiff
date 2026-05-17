@@ -1,9 +1,40 @@
 # Codiff
 
-Codiff is a local PR viewer for reviewing staged and unstaged Git changes before
-committing.
+Codiff is a beautiful, minimal, local diff viewer for reviewing staged and unstaged Git changes before committing.
 
-## Usage
+## Why Codiff
+
+- **Fast Local Reviews:** See changes in any Git repository to review code before committing.
+- **LLM Walkthroughs:** Run `codiff -w` to ask Codex to give your a review order and more context.
+- **Inline Review Comments:** Comment directly on changed lines and copy all review comments as Markdown for follow-ups.
+
+## Download
+
+Download the latest Codiff app from [GitHub Releases](https://github.com/nkzw-tech/codiff/releases).
+
+After installing the app, run `Codiff > Install Terminal Helper` to make the `codiff` command available in your shell.
+
+## Command Line
+
+```bash
+codiff
+```
+
+Run it from any Git repository, or pass a path:
+
+```bash
+codiff /path/to/repository
+```
+
+Start with an LLM-generated walkthrough order:
+
+```bash
+codiff -w
+```
+
+Launching Codiff in multiple repositories opens a separate native window for each repository.
+
+## Development
 
 ```bash
 vp install
@@ -11,20 +42,7 @@ vp build
 vpr codiff
 ```
 
-Run it from any Git repository, or pass a path:
-
-```bash
-vpr codiff /path/to/repository
-```
-
-The packaged CLI is named `codiff`. Launching it in multiple repositories opens
-a separate native window for each repository.
-
-The renderer talks to a source-based repository API. The first UI uses the
-`working-tree` source for staged and unstaged changes; the Electron bridge also
-has commit history and commit-diff sources ready for the later history picker.
-
-## Development
+For live development:
 
 ```bash
 vpr dev
