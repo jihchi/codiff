@@ -12,6 +12,12 @@ Codiff is a beautiful, minimal, local diff viewer for reviewing staged and unsta
 
 ## Download
 
+Install with Homebrew:
+
+```bash
+brew install --cask nkzw-tech/tap/codiff
+```
+
 Download the latest Codiff app from [GitHub Releases](https://github.com/nkzw-tech/codiff/releases).
 
 After installing the app, run `Codiff > Install Terminal Helper` to make the `codiff` command available in your shell.

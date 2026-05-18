@@ -52,52 +52,100 @@ These parts are app-specific:
 
 Use a cask, not a formula, because Codiff is a prebuilt macOS `.app` bundle.
 
-Create a tap repository:
+The tap lives at <https://github.com/nkzw-tech/homebrew-tap>. Users can install
+Codiff with:
 
 ```sh
-gh repo create cpojer/homebrew-tap --public --clone
-cd homebrew-tap
-mkdir -p Casks
+brew install --cask nkzw-tech/tap/codiff
 ```
 
-After building the mac app, upload `out/make/zip/darwin/arm64/Codiff-darwin-arm64-*.zip` to a stable release URL, for example a GitHub Release in the Codiff repository. Compute its checksum:
+Or tap the repository first:
 
 ```sh
-shasum -a 256 Codiff-darwin-arm64-0.0.1.zip
+brew tap nkzw-tech/tap
+brew install --cask codiff
 ```
 
-Create `Casks/codiff.rb`:
+### Manual Release Flow
+
+Build, sign, and notarize the macOS app locally. The signed zip should be in:
+
+```sh
+out/make/zip/darwin/arm64/Codiff-darwin-arm64-<version>.zip
+```
+
+The zip must also be uploaded to the matching GitHub Release in
+`nkzw-tech/codiff` and be available at the stable public URL:
+
+```sh
+https://github.com/nkzw-tech/codiff/releases/download/v<version>/Codiff-darwin-arm64-<version>.zip
+```
+
+If the release is still a draft, publish it before updating the tap:
+
+```sh
+gh release edit v<version> --repo nkzw-tech/codiff --draft=false --latest --title v<version>
+```
+
+Verify the release asset URL and checksum:
+
+```sh
+curl -L --fail --output /tmp/Codiff-darwin-arm64-<version>.zip \
+  https://github.com/nkzw-tech/codiff/releases/download/v<version>/Codiff-darwin-arm64-<version>.zip
+shasum -a 256 out/make/zip/darwin/arm64/Codiff-darwin-arm64-<version>.zip
+shasum -a 256 /tmp/Codiff-darwin-arm64-<version>.zip
+```
+
+Update `Casks/codiff.rb` in `nkzw-tech/homebrew-tap` with the new `version`
+and `sha256`:
 
 ```ruby
 cask "codiff" do
-  version "0.0.1"
-  sha256 "REPLACE_WITH_SHA256"
+  version "0.2.0"
+  sha256 "6fa3d5e723a1f768bbb81e16f7c05bd3e6559a53fd48a6d1aa2f5093ddce10db"
 
-  url "https://github.com/cpojer/codiff/releases/download/v#{version}/Codiff-darwin-arm64-#{version}.zip"
+  url "https://github.com/nkzw-tech/codiff/releases/download/v#{version}/Codiff-darwin-arm64-#{version}.zip"
   name "Codiff"
-  desc "Local code review diff viewer"
-  homepage "https://github.com/cpojer/codiff"
+  desc "Visual diff tool for Git changes"
+  homepage "https://github.com/nkzw-tech/codiff"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
   depends_on arch: :arm64
+  depends_on macos: :big_sur
 
   app "Codiff.app"
-  binary "#{appdir}/Codiff.app/Contents/Resources/app/bin/codiff-app", target: "codiff"
+  binary "#{appdir}/Codiff.app/Contents/Resources/app/bin/codiff-app",
+         target: "codiff"
+
+  zap trash: [
+    "~/Library/Application Support/Codiff",
+    "~/Library/Preferences/dev.nkzw-tech.codiff.plist",
+    "~/Library/Saved Application State/dev.nkzw-tech.codiff.savedState",
+  ]
 end
 ```
 
-Commit and push:
+Commit and push the tap update:
 
 ```sh
 git add Casks/codiff.rb
-git commit -m "Add Codiff cask"
+git commit -m "Update Codiff cask to <version>"
 git push
 ```
 
-Users can install it with either command:
+After pushing, verify Homebrew sees the new version:
 
 ```sh
-brew install --cask cpojer/tap/codiff
-brew tap cpojer/tap
-brew install --cask codiff
+brew tap nkzw-tech/tap
+git -C "$(brew --repository nkzw-tech/tap)" pull --ff-only
+brew audit --cask nkzw-tech/tap/codiff
+brew style --cask nkzw-tech/tap/codiff
+brew info --cask nkzw-tech/tap/codiff
+brew upgrade --cask codiff
 ```
 
 The cask symlinks Codiff's packaged terminal helper as `codiff`. Running
@@ -108,5 +156,3 @@ attached to the Electron process.
 Users who install the `.app` directly can run `Codiff > Install Terminal Helper`
 from the app menu. Codiff installs the helper into the first writable location
 from `/opt/homebrew/bin`, `/usr/local/bin`, and `~/.local/bin`.
-
-For updates, upload a new zip, update `version` and `sha256`, commit, and push.
