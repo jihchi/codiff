@@ -93,7 +93,7 @@ const normalizeReviewAssistantReply = (input) => ({
   version: 1,
 });
 
-const readReviewAssistantReply = async (state, request) => {
+const readReviewAssistantReply = async (state, request, codexOptions) => {
   try {
     const response = await runCodex(
       state.root,
@@ -101,6 +101,7 @@ const readReviewAssistantReply = async (state, request) => {
       reviewAssistantSchema,
       'review-assistant.json',
       'Codex review reply timed out.',
+      codexOptions,
     );
     const parsed = parseJSONMessage(response);
 

@@ -202,7 +202,7 @@ const normalizeWalkthrough = (input, files) => {
   };
 };
 
-const readWalkthrough = async (state) => {
+const readWalkthrough = async (state, codexOptions) => {
   if (state.files.length === 0) {
     return {
       status: 'ready',
@@ -224,6 +224,7 @@ const readWalkthrough = async (state) => {
       walkthroughSchema,
       'walkthrough.json',
       'Codex walkthrough timed out.',
+      codexOptions,
     );
     const parsed = parseJSONMessage(response);
 

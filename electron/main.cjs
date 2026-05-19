@@ -35,6 +35,12 @@ const {
   submitPullRequestReview,
   validateRepositoryPath,
 } = require('./git-state.cjs');
+const {
+  DEFAULT_OPENAI_MODEL,
+  FALLBACK_OPENAI_MODEL,
+  normalizeOpenAIModel,
+  OPENAI_MODELS,
+} = require('./codex.cjs');
 const { readReviewAssistantReply } = require('./review-assist.cjs');
 const { readWalkthrough } = require('./walkthrough.cjs');
 
@@ -43,6 +49,7 @@ const repositoryWatchers = new Map();
 const windowRepositories = new Map();
 const windowLaunchOptions = new Map();
 let preferences = {
+  openAIModel: DEFAULT_OPENAI_MODEL,
   showWhitespace: false,
 };
 
@@ -280,9 +287,11 @@ const getPreferencesPath = () => join(app.getPath('userData'), 'preferences.json
 
 const readPreferences = () => {
   try {
+    const storedPreferences = JSON.parse(readFileSync(getPreferencesPath(), 'utf8'));
     return {
       ...preferences,
-      ...JSON.parse(readFileSync(getPreferencesPath(), 'utf8')),
+      ...storedPreferences,
+      openAIModel: normalizeOpenAIModel(storedPreferences?.openAIModel),
     };
   } catch {
     return preferences;
@@ -300,6 +309,34 @@ const sendPreferencesChanged = () => {
     }
   }
 };
+
+const updatePreferences = (nextPreferences) => {
+  preferences = {
+    ...preferences,
+    ...nextPreferences,
+    openAIModel: normalizeOpenAIModel(nextPreferences.openAIModel ?? preferences.openAIModel),
+  };
+  writePreferences();
+  sendPreferencesChanged();
+  Menu.setApplicationMenu(buildApplicationMenu());
+};
+
+const selectOpenAIModel = (model) => {
+  const openAIModel = normalizeOpenAIModel(model);
+  if (preferences.openAIModel === openAIModel) {
+    return;
+  }
+
+  updatePreferences({ openAIModel });
+};
+
+const getCodexOptions = () => ({
+  fallbackModel: FALLBACK_OPENAI_MODEL,
+  model: preferences.openAIModel,
+  onModelFallback: async (fallbackModel) => {
+    updatePreferences({ openAIModel: fallbackModel });
+  },
+});
 
 const readRepositoryWatcherSnapshot = async (repositoryPath) => {
   try {
@@ -535,14 +572,27 @@ const openFileInEditor = async (absolutePath) => {
   await shell.openPath(absolutePath);
 };
 
+const buildOpenAIModelSubmenu = () =>
+  OPENAI_MODELS.map((model) => ({
+    checked: preferences.openAIModel === model.id,
+    click: () => selectOpenAIModel(model.id),
+    label: model.label,
+    type: 'radio',
+  }));
+
 const buildApplicationMenu = () =>
   Menu.buildFromTemplate([
     ...(process.platform === 'darwin'
       ? [
           {
-            label: app.name,
+            label: 'Codiff',
             submenu: [
               { role: 'about' },
+              { type: 'separator' },
+              {
+                label: 'OpenAI Model',
+                submenu: buildOpenAIModelSubmenu(),
+              },
               { type: 'separator' },
               {
                 click: (_menuItem, browserWindow) => installTerminalHelper(browserWindow),
@@ -557,6 +607,15 @@ const buildApplicationMenu = () =>
     {
       label: 'File',
       submenu: [
+        ...(process.platform === 'darwin'
+          ? []
+          : [
+              {
+                label: 'OpenAI Model',
+                submenu: buildOpenAIModelSubmenu(),
+              },
+              { type: 'separator' },
+            ]),
         {
           accelerator: 'CommandOrControl+O',
           click: (_menuItem, browserWindow) => openRepositoryFolder(browserWindow),
@@ -594,12 +653,9 @@ const buildApplicationMenu = () =>
         {
           checked: preferences.showWhitespace,
           click: (menuItem) => {
-            preferences = {
-              ...preferences,
+            updatePreferences({
               showWhitespace: menuItem.checked,
-            };
-            writePreferences();
-            sendPreferencesChanged();
+            });
           },
           label: 'Show Whitespace',
           type: 'checkbox',
@@ -734,14 +790,14 @@ ipcMain.handle('codiff:getWalkthrough', async (event, source) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const state = await readRepositoryState(repositoryPath, source || launchOptions?.source);
-  return readWalkthrough(state);
+  return readWalkthrough(state, getCodexOptions());
 });
 
 ipcMain.handle('codiff:askReviewAssistant', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const state = await readRepositoryState(repositoryPath, request?.source || launchOptions?.source);
-  return readReviewAssistantReply(state, request);
+  return readReviewAssistantReply(state, request, getCodexOptions());
 });
 
 ipcMain.handle('codiff:submitPullRequestComment', async (event, request) => {

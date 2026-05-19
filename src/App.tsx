@@ -370,6 +370,7 @@ const fileTreeSort = (
 ) => compareTreePaths(left.path, right.path);
 
 const defaultPreferences: CodiffPreferences = {
+  openAIModel: 'gpt-5.3-codex-spark',
   showWhitespace: false,
 };
 

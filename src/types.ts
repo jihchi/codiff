@@ -160,6 +160,7 @@ export type DiffSectionContentRequest = {
 };
 
 export type CodiffPreferences = {
+  openAIModel: string;
   showWhitespace: boolean;
 };
 
