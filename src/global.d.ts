@@ -29,9 +29,7 @@ declare global {
       getTerminalHelperStatus: () => Promise<TerminalHelperStatus>;
       getWalkthrough: (source?: ReviewSource) => Promise<WalkthroughResult>;
       installTerminalHelper: () => Promise<TerminalHelperStatus>;
-      onCopyPendingCommentsRequest: (
-        callback: () => string | Promise<string>,
-      ) => () => void;
+      onCopyPendingCommentsRequest: (callback: () => string | Promise<string>) => () => void;
       onFindInDiffs: (callback: () => void) => () => void;
       onPreferencesChanged: (callback: (preferences: CodiffPreferences) => void) => () => void;
       onRepositoryChanged: (callback: (change: { root: string }) => void) => () => void;

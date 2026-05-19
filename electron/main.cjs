@@ -48,6 +48,7 @@ const {
   getWindowIdentity,
   getWindowIdentityForSource,
 } = require('./window-identity.cjs');
+const { createPendingCommentsClipboardController } = require('./pending-comments.cjs');
 const { readWalkthrough } = require('./walkthrough.cjs');
 
 const root = dirname(__dirname);
@@ -55,6 +56,7 @@ const repositoryWatchers = new Map();
 const windowIdentities = new Map();
 const windowRepositories = new Map();
 const windowLaunchOptions = new Map();
+const pendingCommentsClipboardController = createPendingCommentsClipboardController({ clipboard });
 let preferences = {
   copyCommentsOnClose: false,
   openAIModel: DEFAULT_OPENAI_MODEL,
@@ -724,45 +726,14 @@ const buildApplicationMenu = () =>
     },
   ]);
 
-let nextCopyPendingCommentsRequestId = 0;
-const pendingCopyPendingCommentsRequests = new Map();
+let copyingPendingCommentsBeforeQuit = false;
 let quitting = false;
+let quitAfterCopyingPendingComments = false;
 
-ipcMain.on('codiff:copyPendingCommentsResult', (event, requestId, markdown) => {
-  const pending = pendingCopyPendingCommentsRequests.get(requestId);
-  if (!pending || pending.webContentsId !== event.sender.id) {
-    return;
-  }
-
-  pendingCopyPendingCommentsRequests.delete(requestId);
-  pending.resolve(typeof markdown === 'string' ? markdown : '');
-});
-
-const requestPendingCommentsMarkdown = (browserWindow) =>
-  new Promise((resolve) => {
-    if (browserWindow.isDestroyed() || browserWindow.webContents.isDestroyed()) {
-      resolve('');
-      return;
-    }
-
-    const requestId = ++nextCopyPendingCommentsRequestId;
-    const webContentsId = browserWindow.webContents.id;
-    const timeout = setTimeout(() => {
-      if (pendingCopyPendingCommentsRequests.delete(requestId)) {
-        resolve('');
-      }
-    }, 2000);
-
-    pendingCopyPendingCommentsRequests.set(requestId, {
-      resolve: (markdown) => {
-        clearTimeout(timeout);
-        resolve(markdown);
-      },
-      webContentsId,
-    });
-
-    browserWindow.webContents.send('codiff:copyPendingCommentsRequest', requestId);
-  });
+ipcMain.on(
+  'codiff:copyPendingCommentsResult',
+  pendingCommentsClipboardController.handleCopyPendingCommentsResult,
+);
 
 const createWindow = (
   repositoryPath,
@@ -801,24 +772,24 @@ const createWindow = (
   }
   window.once('ready-to-show', () => window.show());
   let allowClose = false;
+  let copyingPendingCommentsBeforeClose = false;
   window.on('close', (event) => {
     if (allowClose || quitting || !preferences.copyCommentsOnClose) {
       return;
     }
 
     event.preventDefault();
-    requestPendingCommentsMarkdown(window)
-      .then((markdown) => {
-        if (markdown) {
-          clipboard.writeText(markdown);
-        }
-      })
-      .finally(() => {
-        allowClose = true;
-        if (!window.isDestroyed()) {
-          window.close();
-        }
-      });
+    if (copyingPendingCommentsBeforeClose) {
+      return;
+    }
+
+    copyingPendingCommentsBeforeClose = true;
+    pendingCommentsClipboardController.copyPendingCommentsToClipboard([window]).finally(() => {
+      allowClose = true;
+      if (!window.isDestroyed()) {
+        window.close();
+      }
+    });
   });
   window.on('closed', () => {
     const watcher = repositoryWatchers.get(webContentsId);
@@ -915,7 +886,28 @@ if (squirrelStartup || !lock) {
     app.quit();
   });
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    const windows = BrowserWindow.getAllWindows().filter(
+      (window) => !window.isDestroyed() && !window.webContents.isDestroyed(),
+    );
+
+    if (preferences.copyCommentsOnClose && !quitAfterCopyingPendingComments && windows.length) {
+      event.preventDefault();
+      if (copyingPendingCommentsBeforeQuit) {
+        return;
+      }
+
+      copyingPendingCommentsBeforeQuit = true;
+      void pendingCommentsClipboardController
+        .copyPendingCommentsToClipboard(windows)
+        .finally(() => {
+          quitAfterCopyingPendingComments = true;
+          quitting = true;
+          app.quit();
+        });
+      return;
+    }
+
     quitting = true;
   });
 }
